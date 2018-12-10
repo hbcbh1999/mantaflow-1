@@ -11,7 +11,7 @@
 #
 # ----------------------------------------------------------------------------
 
-import os, argparse, operator, math, random, pickle
+import os, argparse, operator, math, random, pickle, time
 assertNumpy() # make sure mantaflow is compiled with the NUMPY option, ie, "cmake ... -DNUNPY=1"
 
 def path_to_frame(outdir, frame):
@@ -49,18 +49,18 @@ params['dx']          = 1.0/params['sres'] # particle spacing (= 2 x radius)
 params['res']         = 64                 # reference resolution
 params['len']         = 1.0                # reference length
 params['bnd']         = 4                  # boundary cells
-params['gref']        = 0                  # real-world gravity
+params['gref']        = -9.8               # real-world gravity
 params['jitter']      = 0.0                # jittering particles
 params['stref']       = 0.073              # surface tension (reference scale [m]; e.g., 0.073)
 params['cgaccuracy']  = 1e-3               # cg solver's threshold
 params['fps']         = 30
-params['t_end']       = 3.0
+params['t_end']       = 6.0
 params['sdt']         = None
 params['frame_saved'] = -1
 params['frame_last']  = -1
 
 scaleToManta = float(params['res'])/params['len']
-params['gs']    = [params['res']+params['bnd']*2, params['res']+params['bnd']*2, params['res']+params['bnd']*2 if params['dim']==3 else 1]
+params['gs']    = [params['res']*1.5+params['bnd']*2, params['res']+params['bnd']*2, params['res']+params['bnd']*2 if params['dim']==3 else 1]
 params['grav']  = params['gref']*scaleToManta
 params['stens'] = params['stref']*scaleToManta
 
@@ -101,30 +101,15 @@ savingFuncs.append([pT.save, 'particlesType.uni'])
 gFlags.initDomain(params['bnd']-1)
 
 # fluid
-balls, vels = [], []
-N_pairs = random.randint(1, 3)
-for i in range(N_pairs):
-	balls.append([0.5+random.uniform(-0.25, 0), 0.5+random.uniform(-0.25,0.25), 0.5+random.uniform(-0.25,0.25), random.uniform(0.05,0.1)])
-	vels.append(list(map(operator.sub, [0.5]*3, balls[-1][:3])))
-	balls.append(list(map(operator.add, [0.5]*3, vels[-1])))
-	balls[-1].append(random.uniform(0.05,0.1))
-	vels.append(list(map(operator.sub, [0.5]*3, balls[-1][:3])))
+a = vec3(params['res']*0.2+params['bnd'], params['res']*0.2+params['bnd'], params['res']*0.2+params['bnd'] if (params['dim']==3) else 0)
+b = vec3(params['res']*0.3, params['res']*0.3, params['res']*0.3 if (params['dim']==3) else params['gs'][2])
+fld = s.create(Box, center=a, size=b)
 
-for i, ball in enumerate(balls):
-	ball_c = vec3(ball[0]*params['res']+params['bnd'], ball[1]*params['res']+params['bnd'], ball[2]*params['res']+params['bnd'] if (params['dim']==3) else 0.5)
-	obj = s.create(Sphere, center=ball_c, radius=ball[3]*params['res'])
-	begin = pp.pySize()
-	sampleShapeWithParticles(shape=obj, flags=gFlags, parts=pp, discretization=params['sres'], randomness=params['jitter'], refillEmpty=True, notiming=True)
-	end = pp.pySize()
-	pT.setConstRange(s=FlagFluid, begin=begin, end=end, notiming=True)
-	markFluidCells(parts=pp, flags=gFlags, ptype=pT, exclude=FlagObstacle)
-
-	vel = vels[i]
-	if (params['dim']<3): vel[2] = 0
-	vel = list(map(operator.mul, normalize(vel), [random.uniform(1, 3)*params['res']]*3))
-	pV.setConstRange(s=vec3(vel[0], vel[1], vel[2]), begin=begin, end=end, notiming=True)
-
-	gPhi.join(obj.computeLevelset(), notiming=True)
+begin = pp.pySize()
+sampleShapeWithParticles(shape=fld, flags=gFlags, parts=pp, discretization=params['sres'], randomness=params['jitter'], notiming=True)
+end = pp.pySize()
+pT.setConstRange(s=FlagFluid, begin=begin, end=end, notiming=True)
+markFluidCells(parts=pp, flags=gFlags, ptype=pT, exclude=FlagObstacle)
 
 gui = None
 if not nogui:
@@ -138,6 +123,7 @@ if output:
 
 while (s.timeTotal<params['t_end']): # main loop
 
+	start_time = time.time()
 	mapPartsToMAC(vel=gV, flags=gFlags, velOld=gVold, parts=pp, partVel=pV, ptype=pT, exclude=FlagEmpty)
 	if params['sdt'] is None: s.adaptTimestep(gV.getMax())
 	else: s.adaptTimestepByDt(params['sdt'])
@@ -180,6 +166,8 @@ while (s.timeTotal<params['t_end']): # main loop
 	_dummyV_.copyFrom(gV) 
 	_dummyV_.multConst(Vec3(0.02)) 
 
+	print("FPS : %s" % (1/(time.time() - start_time)))
+
 	s.step()
 
-	if output: save_frame(output, s.frame, savingFuncs)
+	#if output: save_frame(output, s.frame, savingFuncs)

@@ -11,7 +11,7 @@
 #
 # ----------------------------------------------------------------------------
 
-import os, sys, argparse, pickle
+import os, sys, argparse, pickle, time
 assertNumpy() # make sure mantaflow is compiled with the NUMPY option, ie, "cmake ... -DNUNPY=1"
 
 def path_to_frame(outdir, frame):
@@ -81,9 +81,9 @@ params                = {}
 params['dim']         = 3                  # dimension
 params['sres']        = 2                  # particle sampling resolution per cell
 params['dx']          = 1.0/params['sres'] # particle spacing (= 2 x radius)
-params['res']         = 75                 # reference resolution
+params['res']         = 64                 # reference resolution
 params['len']         = 1.0                # reference length
-params['bnd']         = 2                  # boundary cells
+params['bnd']         = 4                  # boundary cells
 params['grav']        = 0                  # applied gravity (mantaflow scale); recomputed later
 params['gref']        = -9.8               # real-world gravity
 params['jitter']      = 0.2                # jittering particles
@@ -146,7 +146,7 @@ gFlags.initDomain(params['bnd']-1)
 
 # fluid dam setup
 a = vec3(params['res']*0.2+params['bnd'], params['res']*0.2+params['bnd'], params['res']*0.2+params['bnd'] if (params['dim']==3) else 0)
-b = vec3(params['res']*0.2, params['res']*0.2, params['res']*0.2 if (params['dim']==3) else params['gs'][2])
+b = vec3(params['res']*0.3, params['res']*0.3, params['res']*0.3 if (params['dim']==3) else params['gs'][2])
 fld = s.create(Box, center=a, size=b)
 
 begin = pp.pySize()
@@ -171,6 +171,7 @@ stats = {'candidate': 0, 'decision': 0, 'reverted': 0, 'splashed': 0}
 np_pTimer = np.zeros(pp.pySize(), dtype=dtype_real)
 while (s.timeTotal<params['t_end']): # main loop
 
+	start_time = time.time()
 	mapPartsToMAC(vel=gV, flags=gFlags, velOld=gVold, parts=pp, partVel=pV, ptype=pT, exclude=FlagEmpty)
 	if params['sdt'] is None: s.adaptTimestep(gV.getMax())
 	else: s.adaptTimestepByDt(params['sdt'])
@@ -313,6 +314,8 @@ while (s.timeTotal<params['t_end']): # main loop
 	pT.setConstIntFlag(s=FlagEmpty, t=pItmp, flag=FlagEmpty) # judgement is still valid -> splashing (empty)
 
 	s.step()
+
+	print("FPS : %s" % (1/(time.time() - start_time)))
 
 	if output: save_frame(output, s.frame, savingFuncs)
 	if 0: gui.screenshot("mlflip_%04d.jpg" % s.frame)

@@ -32,8 +32,8 @@ parser = argparse.ArgumentParser(description='Generate Training Data', formatter
 parser.add_argument('-o', '--output', default='../data/mlflip-tf/',        help='output directory')
 parser.add_argument('-s', '--steps',  default=10000, type=int,   help='maximum training steps')
 parser.add_argument('-b', '--batch',  default=100,   type=int,   help='batch size for one step training')
-parser.add_argument('-d', '--dnet',   default='27-34-2',         help='detection networks int-int-...')
-parser.add_argument('-m', '--mnet',   default='27-34-2',         help='modification networks int-int-...')
+parser.add_argument('-d', '--dnet',   default='108-34-2',         help='detection networks int-int-...')
+parser.add_argument('-m', '--mnet',   default='108-34-3',         help='modification networks int-int-...')
 parser.add_argument(      '--dact',   default='none-tanh-tanh',  help='activation function for detection networks')
 parser.add_argument(      '--mact',   default='none-tanh-tanh',  help='activation function for modification networks')
 parser.add_argument('-v', '--mve',    action="store_true",       help='turn on mean-variance learning')
@@ -185,6 +185,7 @@ losses_key = sorted([k for k in log_dict if 'loss' in k])
 losses_fetch = [log_dict[k] for k in losses_key]
 for i in range(pargs.steps):
 	if (i%10==0):           # test
+		print (feed_data_test)
 		summary, acc, loss_i = sess.run([merged, accuracy, losses_fetch], feed_dict=feed_data_test)
 		test_writer.add_summary(summary, i)
 		print('Step {}/{}: accuracy={:.5f}, {}'.format(i,pargs.steps, acc, ', '.join('{}={:.5f}'.format(*t) for t in zip(losses_key, loss_i))))
